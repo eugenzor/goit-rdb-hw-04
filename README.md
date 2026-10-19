@@ -16,67 +16,8 @@ source .venv/bin/activate
 python main.py
 ```
 
-Під час першого запуску датасет [Olist Brazilian E-Commerce](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) (~43 MB) завантажується через `kagglehub` у `~/.cache/kagglehub`. PostgreSQL запускається локально через `pgserver` у каталозі `.pg_data/`.
+Під час першого запуску датасет завантажується i PostgreSQL запускається локально через `pgserver` у каталозі `.pg_data/`.
 
----
-
-## Структура
-
-| Завдання | SQL |
-|---|---|
-| 1. Setup і typed-схема Olist | `01_schema.sql`, `02_load_typed.sql`, `03_row_counts_check.sql` |
-| 2. DML-запити з PostgreSQL-фічами | `04`–`09`: INSERT ... RETURNING, INSERT ... ON CONFLICT DO UPDATE, UPDATE ... FROM, DELETE ... RETURNING |
-| 3. customer_segments | `10_customer_dim.sql`, `11`–`13` |
-| 4. JOIN-запити | `14`–`18`: INNER, LEFT + COALESCE, FULL OUTER, SELF, anti-join |
-| 5. GROUP BY, HAVING і агрегати | `19`–`21` |
-| 6. Set operations, window, data-quality | `22`–`24` |
-
-Raw CSV завантажуються в таблиці `*_raw` через `pandas.to_sql`, далі переносяться у типізовані таблиці з PK/FK/CHECK. Кількість рядків у raw і typed перевіряється через `assert`.
-
-## Пояснення
-
-### 2.1. INSERT ... RETURNING
-
-Повторний запуск того самого INSERT повертає порожній результат: `WHERE NOT EXISTS` не дає створити дублікат alert для того ж продавця.
-
-### 2.2. seller_score (ON CONFLICT DO UPDATE)
-
-SELECT DISTINCT не дає врахувати ті самі замовлення одного продавця більше ніж один раз.
-
-GROUP BY order_id — обчислює одну середню оцінку для кожного замовлення, уникаючи дублювання відгуків.
-
-ON CONFLICT DO UPDATE — оновлює наявні записи замість створення дублікатів.
-
-Продавці без відгуків: avg_rating = NULL, n_reviews = 0, tier = NULL, оскільки оцінок немає.
-
-### 2.4. DELETE ... RETURNING
-
-Після свіжого створення alert результат порожній, бо старих записів немає.
-
-### 3. customer_segments
-
-1. customer_unique_id — ідентифікує реального покупця, навіть якщо він зробив декілька замовлень із різними customer_id.
-2. olist_customer_dim — містить унікальні customer_unique_id, що дозволяє використовувати їх як зовнішній ключ у customer_segments.
-3. reference_date — ця дата з набору даних показує, скільки днів минуло від останньої покупки, і ця кількість не змінюється, якщо зміниться поточна дата.
-4. ON CONFLICT — оновлює наявні сегменти замість створення дублікатів, тому запит можна запускати повторно.
-
-### 4.1. INNER JOIN
-
-Повернуто рядків: 10
-
-Найбільший revenue у топ-10: категорія 'cama_mesa_banho' у штаті SP — 1070048.14 BRL на 8214 замовленнях.
-
-### 4.3. FULL OUTER JOIN
-
-Штати з обома сторонами - 23, тільки з клієнтськими записами - 4, тільки з продавцями - 0.
-
-### 6.3. Data-quality
-
-- Замовлень без review: 768; review без тексту: 58,256.
-- Товарів без категорії: 610; надлишкових повторів review_id: 814.
-- Замовлень із кількома продавцями: 1,278; без позицій: 775.
-
----
 
 ## Висновок
 
